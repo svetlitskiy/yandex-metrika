@@ -110,21 +110,80 @@ See [Server usage](./docs/server.md) for new visits, event timestamps, injected
 ## Connecting browser and server events
 
 Measurement Protocol uses the Metrica ClientID to associate a server event with
-a visitor. Capture it in the browser and send it to your own backend:
+a visitor. How that value reaches the backend depends on where the backend runs,
+so the package supports the three realistic cases without requiring a dedicated
+analytics endpoint.
+
+### Same domain: read it from the incoming request
+
+When the backend shares a registrable domain with the site, the Metrica
+`_ym_uid` cookie arrives with ordinary business requests:
 
 ```ts
-metrika.getClientID(async (clientId) => {
-  await fetch("/api/analytics/client-id", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ clientId }),
-  });
+import { getMetrikaClientIdFromRequest } from "@svetlitskiy/yandex-metrika/server";
+
+const clientId = getMetrikaClientIdFromRequest(request);
+```
+
+The helper accepts a fetch `Request`, a Node.js `IncomingMessage`, or any object
+with headers. `getMetrikaClientIdFromHeaders` and `getMetrikaClientIdFromCookie`
+are available when only headers or only a cookie string are at hand.
+
+### Different domains: propagate an explicit header
+
+A browser does not send `example.com` cookies to `api.other-service.io`. Attach
+the ClientID to the business request you already make:
+
+```ts
+await fetch("https://api.other-service.io/orders", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    ...(await metrika.getPropagationHeaders()),
+  },
+  body: JSON.stringify(order),
 });
 ```
 
+`getPropagationHeaders` resolves to `{ "X-Yandex-Metrika-Client-Id": "..." }`, or
+to an empty object when no ClientID is available, so spreading it is always
+safe. The server helpers read that header before falling back to the cookie.
+
+The package never patches global `fetch` and never sends the ClientID anywhere
+on its own. The application decides which requests carry the header.
+
+### Delayed events: persist the ClientID
+
+Payment webhooks, background jobs, and CRM updates run when no browser request
+exists. Store the extracted value with the entity the later event belongs to:
+
+```ts
+order.metrikaClientId = getMetrikaClientIdFromRequest(request);
+
+// later, from a webhook:
+await metrika.reachGoal({
+  clientId: order.metrikaClientId,
+  name: "payment_completed",
+  url: "https://example.com/orders/payment",
+});
+```
+
+### Optional: a dedicated synchronization endpoint
+
+A separate endpoint is still useful when the ClientID must be attached to a
+signed-in user before any business request happens:
+
+```ts
+const clientId = await metrika.getClientID();
+```
+
+Send that value wherever your application needs it. This is one option, not the
+required integration path.
+
 Your application decides how the ClientID maps to a user, where it is stored,
-when it expires, and whether analytics consent permits storing it. Validate
-untrusted values with `isMetrikaClientId` before persisting them.
+when it expires, and whether analytics consent permits storing it. A propagated
+ClientID is untrusted input; the helpers validate it with `isMetrikaClientId`,
+and it must never be treated as authentication or authorization data.
 
 ## Starting a server-side visit
 
