@@ -1,15 +1,27 @@
-import { createMetrikaServerClient } from "../src/server/index";
+import {
+  createMetrikaServerClient,
+  getMetrikaClientIdFromRequest,
+} from "../src/server/index";
 
 const metrika = createMetrikaServerClient({
   counterId: process.env.YANDEX_METRIKA_COUNTER_ID,
   measurementToken: process.env.YANDEX_METRIKA_MEASUREMENT_TOKEN,
 });
 
-const result = await metrika.reachGoal({
-  clientId: process.env.YANDEX_METRIKA_CLIENT_ID,
-  name: "purchase",
-  url: "https://example.com/checkout/success",
-  params: { plan: "pro" },
-});
+// A framework-neutral request handler: the ClientID arrives either in the
+// propagation header or in the `_ym_uid` cookie of the incoming request.
+export async function handleOrderCreated(request: Request): Promise<Response> {
+  const clientId = getMetrikaClientIdFromRequest(request);
 
-console.info(result);
+  // Persist `clientId` with the order so delayed events, such as a payment
+  // webhook, can report the same visitor later.
+  const result = await metrika.reachGoal({
+    clientId,
+    name: "order_created",
+    url: request.url,
+    params: { plan: "pro" },
+  });
+
+  console.info(result);
+  return Response.json({ ok: true });
+}
