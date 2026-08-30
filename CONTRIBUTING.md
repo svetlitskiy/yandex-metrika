@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve `@svetlitskiy/yandex-metrika`.
+Thank you for helping improve `@a.svetlitskiy/yandex-metrika`.
 
 ## Development
 

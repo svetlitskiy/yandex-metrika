@@ -9,7 +9,7 @@ function created by the Yandex Metrica tag.
 import {
   createMetrikaBrowserClient,
   parseMetrikaTagId,
-} from "@svetlitskiy/yandex-metrika/browser";
+} from "@a.svetlitskiy/yandex-metrika/browser";
 
 const metrika = createMetrikaBrowserClient({
   tagId: () => parseMetrikaTagId(import.meta.env.PUBLIC_YANDEX_METRIKA_ID),
@@ -113,7 +113,7 @@ handlers. The package is precompiled and does not need to be listed in
 ```tsx
 "use client";
 
-import { createMetrikaBrowserClient } from "@svetlitskiy/yandex-metrika/browser";
+import { createMetrikaBrowserClient } from "@a.svetlitskiy/yandex-metrika/browser";
 
 const metrika = createMetrikaBrowserClient({ tagId: 12345678 });
 

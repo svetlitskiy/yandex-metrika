@@ -18,7 +18,7 @@ variable, browser bundle, log, or API response.
 ## Create a reusable client
 
 ```ts
-import { createMetrikaServerClient } from "@svetlitskiy/yandex-metrika/server";
+import { createMetrikaServerClient } from "@a.svetlitskiy/yandex-metrika/server";
 
 const metrika = createMetrikaServerClient({
   counterId: process.env.YANDEX_METRIKA_COUNTER_ID,
@@ -42,7 +42,7 @@ import {
   getMetrikaClientIdFromCookie,
   getMetrikaClientIdFromHeaders,
   getMetrikaClientIdFromRequest,
-} from "@svetlitskiy/yandex-metrika/server";
+} from "@a.svetlitskiy/yandex-metrika/server";
 
 getMetrikaClientIdFromRequest(request); // Request, IncomingMessage, { headers }
 getMetrikaClientIdFromHeaders(request.headers); // Headers or a header record
@@ -145,7 +145,7 @@ To create a new server-side visit, send a pageview before the event:
 import {
   createMetrikaServerClient,
   metrikaChannelPageUrl,
-} from "@svetlitskiy/yandex-metrika/server";
+} from "@a.svetlitskiy/yandex-metrika/server";
 
 await metrika.reachGoal({
   clientId,
@@ -169,7 +169,7 @@ The standalone `reachGoal` function accepts the same values without creating a
 client:
 
 ```ts
-import { reachGoal } from "@svetlitskiy/yandex-metrika/server";
+import { reachGoal } from "@a.svetlitskiy/yandex-metrika/server";
 
 await reachGoal({
   counterId: "12345678",
