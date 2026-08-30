@@ -44,8 +44,8 @@ dependencies and supports Node.js 18.18 or newer.
 
 ## Package entry points
 
-| Import                                | Purpose                                 |
-| ------------------------------------- | --------------------------------------- |
+| Import                                  | Purpose                                 |
+| --------------------------------------- | --------------------------------------- |
 | `@a.svetlitskiy/yandex-metrika/browser` | The `window.ym` browser client          |
 | `@a.svetlitskiy/yandex-metrika/server`  | Server-side Measurement Protocol events |
 | `@a.svetlitskiy/yandex-metrika`         | Shared helpers and types                |
