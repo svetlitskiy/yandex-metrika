@@ -1,8 +1,8 @@
 name: Publish
 
 on:
-  release:
-    types: [published]
+  repository_dispatch:
+    types: [release-created]
 
 permissions:
   contents: read
@@ -10,11 +10,12 @@ permissions:
 
 jobs:
   publish:
-    if: github.event.release.prerelease == false
     runs-on: ubuntu-latest
     environment: npm
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.client_payload.tag }}
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -23,5 +24,11 @@ jobs:
       - run: npm ci
       - run: npm run check
       - name: Verify release tag matches package version
-        run: test "${GITHUB_REF_NAME}" = "v$(node -p "require('./package.json').version")"
+        env:
+          RELEASE_TAG: ${{ github.event.client_payload.tag }}
+          RELEASE_VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
+          test "$RELEASE_VERSION" = "$PACKAGE_VERSION"
       - run: npm publish --access public
