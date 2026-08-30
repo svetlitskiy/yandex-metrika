@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.3.0 (2026-08-30)
+
+### Summary
+
+- Package is now published under the `@a.svetlitskiy` npm scope.
+- Install and import examples updated to use `@a.svetlitskiy/yandex-metrika`.
+- Fixed README table alignment for the new package name.
+- Documentation for browser and server usage updated to match the new scope.
+- Releasing and contributing guides now reference the correct npm scope.
+- CI workflow updated to reflect the new package name and publish prerequisites.
+- No changes to browser or server SDK behavior; this release is purely packaging and documentation.
+
+### Areas changed
+
+- Docs: 4
+- Other: 3
+- CI: 1
+
+Links: https://github.com/svetlitskiy/yandex-metrika/compare/v0.2.0...v0.3.0
+
 ## v0.2.0 (2026-08-30)
 
 ### Summary
