@@ -32,7 +32,8 @@ npm run format
 - Do not introduce framework-specific behavior into the core package.
 - Add tests for behavior and public exports.
 - Update the English documentation when the public API changes.
-- Add a short entry to the `Unreleased` section of `CHANGELOG.md`.
+- Do not edit `CHANGELOG.md` or the package version in a pull request. Merging
+  to `master` bumps the next minor version and generates the changelog.
 - Do not include real counter IDs, ClientID values, Measurement Protocol tokens,
   or user data in fixtures.
 

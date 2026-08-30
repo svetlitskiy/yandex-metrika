@@ -1,0 +1,492 @@
+name: Bump Version
+
+on:
+  push:
+    branches:
+      - master
+
+run-name: create-release @ ${{ github.sha }}
+
+jobs:
+  bump-version:
+    if: github.ref == 'refs/heads/master' && !startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Get previous tag for changelog
+        id: previous_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD 2>/dev/null || echo "")
+            echo "No previous tag found, using first commit: $PREV_TAG"
+          else
+            echo "Previous tag: $PREV_TAG"
+          fi
+          echo "previous_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Get current version and bump
+        id: version
+        run: |
+          NEW_VERSION=$(node << 'EOF'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          const ROOT_PKG = 'package.json';
+
+          if (!fs.existsSync(ROOT_PKG)) {
+            console.error(`Error: ${ROOT_PKG} not found`);
+            process.exit(1);
+          }
+
+          const pkg = JSON.parse(fs.readFileSync(ROOT_PKG, 'utf8'));
+          const currentVersion = pkg.version || '0.0.0';
+          console.error(`Current version: ${currentVersion}`);
+
+          const [major, minor, patch] = currentVersion.split('.').map(Number);
+
+          if (isNaN(major) || isNaN(minor) || isNaN(patch)) {
+            console.error(`Error: Invalid version format: ${currentVersion}`);
+            process.exit(1);
+          }
+
+          const BASE_VERSION = '0.0.1';
+          const [baseMajor, baseMinor] = BASE_VERSION.split('.').map(Number);
+
+          let currentMajor = major;
+          let currentMinor = minor;
+
+          if (major < baseMajor || (major === baseMajor && minor < baseMinor)) {
+            currentMajor = baseMajor;
+            currentMinor = baseMinor - 1;
+          }
+
+          let attempts = 0;
+          const maxAttempts = 100;
+
+          while (attempts < maxAttempts) {
+            currentMinor++;
+            const newVersion = `${currentMajor}.${currentMinor}.0`;
+
+            try {
+              execSync(`git rev-parse "v${newVersion}" >/dev/null 2>&1`, { stdio: 'ignore' });
+              console.error(`Tag v${newVersion} already exists, trying next version...`);
+            } catch (e) {
+              console.error(`Bumping version: ${currentVersion} -> ${newVersion}`);
+              console.log(newVersion);
+              process.exit(0);
+            }
+
+            attempts++;
+          }
+
+          console.error(`Error: Could not find available version after ${maxAttempts} attempts`);
+          process.exit(1);
+          EOF
+          )
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+          echo "::notice title=Creating Release::Release v${NEW_VERSION} will be created"
+
+      - name: Update package version
+        run: npm version "${{ steps.version.outputs.new_version }}" --no-git-tag-version
+
+      - name: Collect release context (commits, PRs, files)
+        id: context
+        uses: actions/github-script@v7
+        env:
+          PREV_TAG: ${{ steps.previous_tag.outputs.previous_tag }}
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prevTagRaw = process.env.PREV_TAG || "";
+            const headRef = context.sha;
+            const newVersion = process.env.NEW_VERSION;
+
+            const maxCommits = 80;
+            const maxFiles = 400;
+            const maxPRs = 80;
+            const maxTextLen = 1200;
+
+            const clip = (s) => {
+              const x = String(s ?? "");
+              return x.length > maxTextLen ? x.slice(0, maxTextLen) + "…" : x;
+            };
+
+            const isBumpCommit = (msg) => {
+              const m = String(msg || "");
+              return m.includes("chore: bump version") || m.includes("[skip ci]");
+            };
+
+            const areas = {
+              Browser: 0,
+              Server: 0,
+              Shared: 0,
+              Docs: 0,
+              Tests: 0,
+              CI: 0,
+              Other: 0,
+            };
+
+            const areaForFile = (f) => {
+              if (f.endsWith(".test.ts")) return "Tests";
+              if (f.startsWith("src/browser")) return "Browser";
+              if (f.startsWith("src/server")) return "Server";
+              if (f.startsWith("src/")) return "Shared";
+              if (f.startsWith("docs/") || f === "README.md") return "Docs";
+              if (f.startsWith(".github/")) return "CI";
+              return "Other";
+            };
+
+            let compare = null;
+            let baseRef = prevTagRaw;
+
+            if (prevTagRaw) {
+              compare = await github.rest.repos.compareCommits({
+                owner,
+                repo,
+                base: prevTagRaw,
+                head: headRef,
+                per_page: 100,
+              });
+            } else {
+              baseRef = "";
+              compare = {
+                data: {
+                  commits: [],
+                  files: [],
+                  html_url: `https://github.com/${owner}/${repo}/compare`,
+                },
+              };
+            }
+
+            const commitsRaw = (compare?.data?.commits || []).slice(0, maxCommits);
+            const commits = commitsRaw
+              .map((c) => {
+                const message = c?.commit?.message || "";
+                const [subject, ...rest] = String(message).split("\n");
+                const body = rest.join("\n").trim();
+                return {
+                  sha: String(c?.sha || "").slice(0, 12),
+                  subject: clip(subject),
+                  body: clip(body),
+                };
+              })
+              .filter((c) => !isBumpCommit(`${c.subject}\n${c.body}`));
+
+            const filesRaw = (compare?.data?.files || []).slice(0, maxFiles);
+            const files = filesRaw.map((f) => {
+              const filename = String(f.filename || "");
+              const area = areaForFile(filename);
+              areas[area] = (areas[area] || 0) + 1;
+              return {
+                filename,
+                status: String(f.status || ""),
+                additions: Number(f.additions || 0),
+                deletions: Number(f.deletions || 0),
+                changes: Number(f.changes || 0),
+                area,
+              };
+            });
+
+            const prsByNumber = new Map();
+            for (const c of commitsRaw) {
+              const sha = c.sha;
+              try {
+                const resp = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  owner,
+                  repo,
+                  commit_sha: sha,
+                  per_page: 50,
+                  mediaType: { previews: ["groot"] },
+                });
+                for (const pr of resp.data || []) {
+                  if (!pr?.number) continue;
+                  if (prsByNumber.has(pr.number)) continue;
+                  prsByNumber.set(pr.number, {
+                    number: pr.number,
+                    title: clip(pr.title || ""),
+                    body: clip(pr.body || ""),
+                    url: pr.html_url || "",
+                  });
+                  if (prsByNumber.size >= maxPRs) break;
+                }
+              } catch (e) {
+                // ignore per-commit failures; we still have commits/files
+              }
+              if (prsByNumber.size >= maxPRs) break;
+            }
+
+            const prs = Array.from(prsByNumber.values());
+
+            const compareUrl = prevTagRaw
+              ? `https://github.com/${owner}/${repo}/compare/${prevTagRaw}...v${newVersion}`
+              : `https://github.com/${owner}/${repo}/releases/tag/v${newVersion}`;
+
+            const out = {
+              version: `v${newVersion}`,
+              baseRef,
+              headRef,
+              compareUrl,
+              areas,
+              commits,
+              prs,
+              files,
+            };
+
+            core.setOutput("context_json", JSON.stringify(out));
+            core.setOutput("compare_url", compareUrl);
+            core.setOutput("areas_json", JSON.stringify(areas));
+
+      - name: Generate AI summary (DeepSeek)
+        id: ai
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL }}
+          CONTEXT_JSON: ${{ steps.context.outputs.context_json }}
+        run: |
+          node <<'EOF' > ai-summary.md
+          const apiKey = process.env.DEEPSEEK_API_KEY || "";
+          const baseUrl = (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
+          const context = process.env.CONTEXT_JSON ? JSON.parse(process.env.CONTEXT_JSON) : null;
+
+          const fallback = "- No AI summary available.\n";
+          if (!apiKey || !context) {
+            process.stdout.write(fallback);
+            process.exit(0);
+          }
+
+          const prompt = [
+            `You are generating release notes for @svetlitskiy/yandex-metrika, a framework-neutral TypeScript SDK for Yandex Metrica browser goals and server-side Measurement Protocol events.`,
+            `Write a short, clear release summary in English as 6-10 markdown bullet points.`,
+            `Each bullet MUST start with "- " (hyphen + space).`,
+            `Do NOT output headings: no lines starting with "#".`,
+            `Do NOT repeat the version label as a title (no "## v..." / "### ... Summary").`,
+            `Do NOT include code blocks. Do NOT include secrets. Avoid excessive detail.`,
+            ``,
+            `Version: ${context.version}`,
+            `Compare: ${context.compareUrl}`,
+            ``,
+            `Areas changed (file-based): ${JSON.stringify(context.areas)}`,
+            ``,
+            `Commits (subject + body):`,
+            ...context.commits.map(c => `- ${c.subject}${c.body ? `\n  ${c.body}` : ""} (${c.sha})`),
+            ``,
+            `Pull requests (title + body):`,
+            ...context.prs.map(pr => `- #${pr.number} ${pr.title}${pr.body ? `\n  ${pr.body}` : ""}`),
+            ``,
+            `Changed files with stats (no code):`,
+            ...context.files.slice(0, 200).map(f => `- ${f.filename} (${f.status}) +${f.additions}/-${f.deletions} [${f.area}]`),
+          ].join("\n");
+
+          const body = {
+            model: "deepseek-v4-flash",
+            messages: [
+              { role: "system", content: "You are a careful release-notes writer." },
+              { role: "user", content: prompt },
+            ],
+            temperature: 0.2,
+          };
+
+          const url = `${baseUrl}/v1/chat/completions`;
+
+          const res = await fetch(url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+
+          if (!res.ok) {
+            process.stdout.write(fallback);
+            process.exit(0);
+          }
+
+          const data = await res.json();
+          const text = String(data?.choices?.[0]?.message?.content || "").trim();
+          if (!text) {
+            process.stdout.write(fallback);
+            process.exit(0);
+          }
+
+          const out = text.length > 3500 ? text.slice(0, 3500) + "\n- (truncated)\n" : text + "\n";
+          process.stdout.write(out);
+          EOF
+
+          {
+            echo "summary<<EOF"
+            cat ai-summary.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Diagnostics - AI summary output
+        if: always()
+        run: |
+          echo "----- AI summary (raw) -----"
+          if [ -f ai-summary.md ]; then
+            cat ai-summary.md
+          else
+            echo "(ai-summary.md not found)"
+          fi
+          echo "----------------------------"
+
+      - name: Update CHANGELOG.md
+        id: changelog_file
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          COMPARE_URL: ${{ steps.context.outputs.compare_url }}
+          AREAS_JSON: ${{ steps.context.outputs.areas_json }}
+          AI_SUMMARY: ${{ steps.ai.outputs.summary }}
+        run: |
+          node <<'EOF' > release-section.md
+          const fs = require("fs");
+          const path = require("path");
+
+          const sanitizeAiSummary = (raw) =>
+            raw
+              .split(/\r?\n/)
+              .filter((line) => !/^\s*#{1,6}\s+\S/.test(line))
+              .join("\n")
+              .trimEnd();
+
+          const newVersion = process.env.NEW_VERSION;
+          const compareUrl = process.env.COMPARE_URL || "";
+          const areas = process.env.AREAS_JSON ? JSON.parse(process.env.AREAS_JSON) : {};
+          const aiSummaryRaw = (process.env.AI_SUMMARY || "- No AI summary available.\n").trimEnd();
+          const aiSummary = sanitizeAiSummary(aiSummaryRaw) || "- No AI summary available.";
+          const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+
+          const date = new Date().toISOString().slice(0, 10);
+
+          const areasList = Object.entries(areas)
+            .filter(([, n]) => Number(n) > 0)
+            .sort((a, b) => Number(b[1]) - Number(a[1]))
+            .map(([k, n]) => `- ${k}: ${n}`)
+            .join("\n");
+
+          const section =
+            `## v${newVersion} (${date})\n\n` +
+            `### Summary\n\n` +
+            `${aiSummary}\n\n` +
+            `### Areas changed\n\n` +
+            `${areasList || "- No file changes detected."}\n\n` +
+            `Links: ${compareUrl}\n\n`;
+
+          const file = path.join(workspace, "CHANGELOG.md");
+          let existing = "";
+          if (fs.existsSync(file)) existing = fs.readFileSync(file, "utf8");
+
+          let next;
+          if (!existing.trim()) {
+            next = `# Changelog\n\n${section}`;
+          } else if (existing.startsWith("# Changelog")) {
+            const headingIndex = existing.search(/^## /m);
+            if (headingIndex === -1) {
+              next = existing.trimEnd() + "\n\n" + section;
+            } else {
+              next = existing.slice(0, headingIndex) + section + existing.slice(headingIndex);
+            }
+          } else {
+            next = section + existing;
+          }
+
+          fs.writeFileSync(file, next, "utf8");
+          console.error(`[changelog] cwd=${process.cwd()}`);
+          console.error(`[changelog] workspace=${workspace}`);
+          console.error(`[changelog] wrote=${file}`);
+
+          process.stdout.write(section);
+          EOF
+
+          {
+            echo "release_body<<EOF"
+            cat release-section.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Diagnostics - CHANGELOG.md updated
+        run: |
+          set -euo pipefail
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          echo "----- CHANGELOG.md (head) -----"
+          if [ -f CHANGELOG.md ]; then
+            sed -n '1,120p' CHANGELOG.md
+          else
+            echo "(CHANGELOG.md not found)"
+            exit 1
+          fi
+          echo "--------------------------------"
+          echo "----- CHANGELOG.md (diff) -----"
+          git diff -- CHANGELOG.md || true
+          echo "-------------------------------"
+          echo "----- git status (porcelain) -----"
+          git status --porcelain
+          echo "----------------------------------"
+          if ! grep -qE "^##\\s+v${NEW_VERSION}\\b" CHANGELOG.md; then
+            echo "ERROR: CHANGELOG.md does not contain section header for v${NEW_VERSION}"
+            exit 1
+          fi
+
+      - name: Commit, tag and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          npx prettier --write CHANGELOG.md
+
+          git add package.json package-lock.json CHANGELOG.md
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git tag "v$NEW_VERSION"
+
+          git push origin master
+          git push origin "v$NEW_VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.new_version }}
+          name: Release v${{ steps.version.outputs.new_version }}
+          body: ${{ steps.changelog_file.outputs.release_body }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger publish workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: release-created
+          client-payload: |
+            {
+              "version": "${{ steps.version.outputs.new_version }}",
+              "tag": "v${{ steps.version.outputs.new_version }}"
+            }
