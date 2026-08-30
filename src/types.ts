@@ -6,13 +6,43 @@ export type MetrikaTagId = number | null;
 /** Options passed to the browser `hit` method. */
 export type MetrikaBrowserHitOptions = MetrikaParams;
 
+/** Options for reading a ClientID from the browser tag. */
+export type MetrikaClientIdOptions = {
+  timeoutMs?: number;
+};
+
+/** Request headers that carry a ClientID to a backend. */
+export type MetrikaPropagationHeaders = Record<string, string>;
+
 /** A small, framework-neutral subset of the Yandex Metrica browser API. */
 export type MetrikaBrowserClient = {
   reachGoal: (name: string, params?: MetrikaParams) => void;
   hit: (url: string, options?: MetrikaBrowserHitOptions) => void;
   setUserID: (userId: string) => void;
   userParams: (params: MetrikaParams) => void;
-  getClientID: (callback: (clientId: string) => void) => void;
+  getClientID: (options?: MetrikaClientIdOptions) => Promise<string | null>;
+  getPropagationHeaders: (
+    options?: MetrikaClientIdOptions,
+  ) => Promise<MetrikaPropagationHeaders>;
+};
+
+/**
+ * Incoming request headers in either supported shape: the WHATWG `Headers`
+ * interface or a plain Node.js header record.
+ */
+export type MetrikaHeadersLike =
+  | { get: (name: string) => string | null | undefined }
+  | Record<string, string | string[] | null | undefined>;
+
+/** Anything carrying incoming request headers, such as `Request`. */
+export type MetrikaRequestLike = {
+  headers: MetrikaHeadersLike;
+};
+
+/** Overrides for the header and cookie names used during ClientID lookup. */
+export type MetrikaClientIdLookupOptions = {
+  headerName?: string;
+  cookieName?: string;
 };
 
 /** Raw fields accepted by the supported Measurement Protocol transport. */

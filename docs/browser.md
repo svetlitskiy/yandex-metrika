@@ -53,26 +53,53 @@ metrika.userParams({
 Avoid sending names, email addresses, access tokens, or other personal and
 sensitive values as analytics parameters.
 
-## Capture ClientID for server events
+## Send ClientID to your backend
+
+Server-side Measurement Protocol events need the Metrica ClientID. Instead of
+calling a dedicated analytics endpoint, attach it to a request the application
+already makes:
 
 ```ts
-import { isMetrikaClientId } from "@svetlitskiy/yandex-metrika/browser";
-
-metrika.getClientID((clientId) => {
-  if (!isMetrikaClientId(clientId)) return;
-
-  void fetch("/api/analytics/client-id", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ clientId }),
-  });
+const response = await fetch("https://api.example.net/orders", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    ...(await metrika.getPropagationHeaders()),
+  },
+  body: JSON.stringify(order),
 });
 ```
 
-The backend should authenticate the request, validate the ClientID again, and
-store it according to the application's consent and retention rules. This
-package intentionally does not prescribe cookies, headers, Redis keys, database
-tables, or a user-to-device mapping strategy.
+`getPropagationHeaders` resolves to `{ "X-Yandex-Metrika-Client-Id": "..." }` when
+a ClientID is available and to an empty object otherwise, so spreading it never
+breaks a request. The header name is exported as `METRIKA_CLIENT_ID_HEADER`, and
+the `/server` entry point reads it with `getMetrikaClientIdFromRequest`.
+
+When the backend shares a registrable domain with the site, no header is needed
+at all: the backend can read the `_ym_uid` cookie from the incoming request.
+
+The package never patches global `fetch` and never sends the ClientID to an
+origin by itself. Choose the requests that carry the header.
+
+## Read the ClientID directly
+
+```ts
+const clientId = await metrika.getClientID();
+
+if (clientId) {
+  // Store it, or send it wherever the application needs it.
+}
+```
+
+`getClientID` resolves to `null` rather than hanging when the counter ID is
+missing, `window.ym` is unavailable, the tag is blocked, or the reported value
+does not pass `isMetrikaClientId`. It waits two seconds by default; pass
+`{ timeoutMs }` to change that. It never rejects.
+
+The backend should validate the ClientID again and store it according to the
+application's consent and retention rules. This package intentionally does not
+prescribe cookies, Redis keys, database tables, or a user-to-device mapping
+strategy.
 
 ## SSR and Next.js
 

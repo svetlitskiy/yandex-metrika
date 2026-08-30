@@ -14,12 +14,21 @@ const packageJson = JSON.parse(
 const esmServer = await import("../dist/server/index.js");
 const cjsServer = require("../dist/server/index.cjs");
 
+const requiredServerExports = [
+  "createMetrikaServerClient",
+  "getMetrikaClientIdFromCookie",
+  "getMetrikaClientIdFromHeaders",
+  "getMetrikaClientIdFromRequest",
+];
+
 for (const [format, entry] of [
   ["ESM", esmServer],
   ["CommonJS", cjsServer],
 ]) {
-  if (typeof entry.createMetrikaServerClient !== "function") {
-    throw new Error(`${format} server entry point is missing its public API`);
+  for (const name of requiredServerExports) {
+    if (typeof entry[name] !== "function") {
+      throw new Error(`${format} server entry point is missing ${name}`);
+    }
   }
 }
 

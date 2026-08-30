@@ -1,16 +1,32 @@
 import {
+  METRIKA_CLIENT_ID_HEADER,
   METRIKA_CLIENT_ID_PATTERN,
+  METRIKA_CLIENT_ID_TIMEOUT_MS,
   isMetrikaClientId,
   parseMetrikaTagId,
 } from "../shared";
 import type {
   MetrikaBrowserClient,
   MetrikaBrowserHitOptions,
+  MetrikaClientIdOptions,
   MetrikaParams,
+  MetrikaPropagationHeaders,
 } from "../types";
 
-export { METRIKA_CLIENT_ID_PATTERN, isMetrikaClientId, parseMetrikaTagId };
-export type { MetrikaBrowserClient, MetrikaBrowserHitOptions, MetrikaParams };
+export {
+  METRIKA_CLIENT_ID_HEADER,
+  METRIKA_CLIENT_ID_PATTERN,
+  METRIKA_CLIENT_ID_TIMEOUT_MS,
+  isMetrikaClientId,
+  parseMetrikaTagId,
+};
+export type {
+  MetrikaBrowserClient,
+  MetrikaBrowserHitOptions,
+  MetrikaClientIdOptions,
+  MetrikaParams,
+  MetrikaPropagationHeaders,
+};
 
 export type YmFunction = (
   id: number,
@@ -47,11 +63,54 @@ function resolveTagId(tagId: MetrikaTagIdInput): number | null {
 export function createMetrikaBrowserClient(
   options: CreateMetrikaBrowserClientOptions,
 ): MetrikaBrowserClient {
-  function call(method: string, ...args: unknown[]): void {
+  function resolveTarget(): { id: number; ym: YmFunction } | null {
     const id = resolveTagId(options.tagId);
     const ym = getYm();
-    if (!id || !Number.isSafeInteger(id) || id < 1 || !ym) return;
-    ym(id, method, ...args);
+    if (!id || !Number.isSafeInteger(id) || id < 1 || !ym) return null;
+    return { id, ym };
+  }
+
+  function call(method: string, ...args: unknown[]): void {
+    const target = resolveTarget();
+    if (!target) return;
+    target.ym(target.id, method, ...args);
+  }
+
+  /**
+   * Reads the ClientID assigned by the Metrica tag.
+   *
+   * Resolves with `null` instead of waiting forever when the tag is missing,
+   * blocked, or slow: the `ym` stub queues calls before `tag.js` loads, so a
+   * blocked tag would otherwise never invoke the callback.
+   */
+  function readClientId(
+    clientIdOptions?: MetrikaClientIdOptions,
+  ): Promise<string | null> {
+    const target = resolveTarget();
+    if (!target) return Promise.resolve(null);
+
+    return new Promise<string | null>((resolve) => {
+      let settled = false;
+      const finish = (clientId: string | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(clientId);
+      };
+
+      const timer = setTimeout(
+        () => finish(null),
+        clientIdOptions?.timeoutMs ?? METRIKA_CLIENT_ID_TIMEOUT_MS,
+      );
+
+      target.ym(target.id, "getClientID", (clientId: unknown) => {
+        finish(
+          typeof clientId === "string" && isMetrikaClientId(clientId)
+            ? clientId
+            : null,
+        );
+      });
+    });
   }
 
   return {
@@ -71,8 +130,14 @@ export function createMetrikaBrowserClient(
     userParams(params: MetrikaParams) {
       call("userParams", params);
     },
-    getClientID(callback: (clientId: string) => void) {
-      call("getClientID", callback);
+    getClientID(clientIdOptions?: MetrikaClientIdOptions) {
+      return readClientId(clientIdOptions);
+    },
+    async getPropagationHeaders(
+      clientIdOptions?: MetrikaClientIdOptions,
+    ): Promise<MetrikaPropagationHeaders> {
+      const clientId = await readClientId(clientIdOptions);
+      return clientId ? { [METRIKA_CLIENT_ID_HEADER]: clientId } : {};
     },
   };
 }

@@ -9,8 +9,8 @@ Measurement Protocol endpoint. It contains no browser or framework code.
 2. Enable Measurement Protocol in the counter's **Data security and usage**
    settings.
 3. Generate a Measurement Protocol token.
-4. Capture Metrica ClientID values during browser visits and store them in your
-   own backend.
+4. Make the Metrica ClientID available on the server: read it from the incoming
+   request, or store it with the entity a later event belongs to.
 
 The token is a secret and must never be included in a public environment
 variable, browser bundle, log, or API response.
@@ -30,6 +30,61 @@ const metrika = createMetrikaServerClient({
 Missing or empty configuration does not throw when the client is created. A
 goal returns `skipped_unconfigured`, which is useful for environments where
 analytics is intentionally disabled.
+
+## Read ClientID from an incoming request
+
+Measurement Protocol needs the ClientID of the browser visitor. Three helpers
+extract it from request data, and all of them validate the result with
+`isMetrikaClientId` before returning it:
+
+```ts
+import {
+  getMetrikaClientIdFromCookie,
+  getMetrikaClientIdFromHeaders,
+  getMetrikaClientIdFromRequest,
+} from "@svetlitskiy/yandex-metrika/server";
+
+getMetrikaClientIdFromRequest(request); // Request, IncomingMessage, { headers }
+getMetrikaClientIdFromHeaders(request.headers); // Headers or a header record
+getMetrikaClientIdFromCookie(request.headers.cookie); // a raw Cookie header
+```
+
+The lookup checks the `X-Yandex-Metrika-Client-Id` header first and falls back
+to the `_ym_uid` cookie. Both names are exported as `METRIKA_CLIENT_ID_HEADER`
+and `METRIKA_CLIENT_ID_COOKIE`, and both can be overridden:
+
+```ts
+getMetrikaClientIdFromHeaders(headers, {
+  headerName: "X-App-Client-Id",
+  cookieName: "app_cid",
+});
+```
+
+Every helper returns `string | null` and never throws, so an unusable request
+degrades to `skipped_no_client_id` instead of failing a business operation.
+
+The helpers accept both the WHATWG `Headers` interface and plain Node.js header
+records, which covers Express, Fastify, Next.js route handlers, Hono, and
+workers without a framework-specific dependency.
+
+### Which source applies
+
+| Deployment                             | Source                              |
+| -------------------------------------- | ----------------------------------- |
+| Backend on the same registrable domain | `_ym_uid` cookie                    |
+| Backend on a different domain          | Propagation header from the browser |
+| Webhook, background job, or CRM update | A ClientID stored earlier           |
+
+The cookie is best effort: it is missing on an unrelated API domain, when the
+visitor blocks cookies, and when the tag has not run yet. Explicit propagation
+with `getPropagationHeaders` in the browser is the reliable path when the
+backend does not share the site's domain.
+
+### Untrusted input
+
+A propagated ClientID comes from the browser and can be forged. Validation only
+guarantees the shape of the value. Never use a ClientID for authentication,
+authorization, or as a lookup key that grants access to another user's data.
 
 ## Send a goal
 
