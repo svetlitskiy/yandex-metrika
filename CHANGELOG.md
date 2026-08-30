@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.2.0 (2026-08-30)
+
+### Summary
+
+- Initial public release of a framework-neutral TypeScript SDK for Yandex Metrica browser goals and server-side Measurement Protocol events.
+- Ships ESM, CommonJS, and TypeScript declarations through isolated package entry points.
+- Adds server helpers to read a Yandex Metrica ClientID from incoming requests, preferring the `X-Yandex-Metrika-Client-Id` header and falling back to the `_ym_uid` cookie.
+- Adds a browser helper that attaches the ClientID to an existing business request, removing the need for a dedicated `/api/analytics/client-id` endpoint.
+- Introduces `getPropagationHeaders` for easy server-side header propagation when a ClientID is available.
+- Breaking change: browser `getClientID` is now Promise-based and resolves to `string | null`; the callback form was removed, and it resolves to `null` instead of waiting indefinitely on missing counters, invalid values, or timeouts.
+- Adds complete English documentation, practical examples, security guidance, and release instructions.
+- Includes tests, package artifact validation, and an automated npm publication via Trusted Publishing.
+
+### Areas changed
+
+- Other: 14
+- Server: 4
+- Docs: 4
+- Shared: 3
+- Tests: 3
+- CI: 3
+- Browser: 1
+
+Links: https://github.com/svetlitskiy/yandex-metrika/compare/d2b883df8cab0fe7cd05404980fe7db94e057fe0...v0.2.0
+
 ## [0.1.0] - 2026-08-29
 
 ### Added
