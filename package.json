@@ -1,5 +1,5 @@
 {
-  "name": "@svetlitskiy/yandex-metrika",
+  "name": "@a.svetlitskiy/yandex-metrika",
   "version": "0.2.0",
   "description": "Framework-neutral Yandex Metrica SDK for browser goals and server-side Measurement Protocol events",
   "keywords": [

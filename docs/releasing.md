@@ -6,7 +6,7 @@ Release, and npm publication automatically.
 
 ## One-time setup
 
-1. Confirm that the npm account or organization owns the `@svetlitskiy` scope.
+1. Confirm that the npm account owns the `@a.svetlitskiy` scope.
 2. Publish the first public version with two-factor authentication:
 
    ```bash
@@ -45,6 +45,7 @@ commits or the bump workflow will fail.
    and invokes `npm publish` through OIDC.
 4. Verify the package page, provenance, exports, and README on npm.
 
-The first merge of this automated flow publishes **0.2.0**. Do not create
+Publish the first public version of `@a.svetlitskiy/yandex-metrika` locally
+after renaming. Later merges to `master` publish through CI. Do not create
 GitHub Releases or bump the version by hand. Never add an npm write token to
 repository secrets when Trusted Publishing is available.

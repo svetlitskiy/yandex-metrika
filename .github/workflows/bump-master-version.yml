@@ -275,7 +275,7 @@ jobs:
           }
 
           const prompt = [
-            `You are generating release notes for @svetlitskiy/yandex-metrika, a framework-neutral TypeScript SDK for Yandex Metrica browser goals and server-side Measurement Protocol events.`,
+            `You are generating release notes for @a.svetlitskiy/yandex-metrika, a framework-neutral TypeScript SDK for Yandex Metrica browser goals and server-side Measurement Protocol events.`,
             `Write a short, clear release summary in English as 6-10 markdown bullet points.`,
             `Each bullet MUST start with "- " (hyphen + space).`,
             `Do NOT output headings: no lines starting with "#".`,

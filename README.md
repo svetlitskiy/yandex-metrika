@@ -1,8 +1,8 @@
-# @svetlitskiy/yandex-metrika
+# @a.svetlitskiy/yandex-metrika
 
-[![npm version](https://img.shields.io/npm/v/@svetlitskiy/yandex-metrika.svg)](https://www.npmjs.com/package/@svetlitskiy/yandex-metrika)
+[![npm version](https://img.shields.io/npm/v/@a.svetlitskiy/yandex-metrika.svg)](https://www.npmjs.com/package/@a.svetlitskiy/yandex-metrika)
 [![CI](https://github.com/svetlitskiy/yandex-metrika/actions/workflows/ci.yml/badge.svg)](https://github.com/svetlitskiy/yandex-metrika/actions/workflows/ci.yml)
-[![license](https://img.shields.io/npm/l/@svetlitskiy/yandex-metrika.svg)](./LICENSE)
+[![license](https://img.shields.io/npm/l/@a.svetlitskiy/yandex-metrika.svg)](./LICENSE)
 
 A small, framework-neutral TypeScript SDK for sending custom events to
 [Yandex Metrica](https://metrica.yandex.com/) from both the browser and the
@@ -36,7 +36,7 @@ replacement for it.
 ## Installation
 
 ```bash
-npm install @svetlitskiy/yandex-metrika
+npm install @a.svetlitskiy/yandex-metrika
 ```
 
 The package ships ESM, CommonJS, and TypeScript declarations. It has no runtime
@@ -46,10 +46,10 @@ dependencies and supports Node.js 18.18 or newer.
 
 | Import                                | Purpose                                 |
 | ------------------------------------- | --------------------------------------- |
-| `@svetlitskiy/yandex-metrika/browser` | The `window.ym` browser client          |
-| `@svetlitskiy/yandex-metrika/server`  | Server-side Measurement Protocol events |
-| `@svetlitskiy/yandex-metrika`         | Shared helpers and types                |
-| `@svetlitskiy/yandex-metrika/types`   | Explicit type-only imports              |
+| `@a.svetlitskiy/yandex-metrika/browser` | The `window.ym` browser client          |
+| `@a.svetlitskiy/yandex-metrika/server`  | Server-side Measurement Protocol events |
+| `@a.svetlitskiy/yandex-metrika`         | Shared helpers and types                |
+| `@a.svetlitskiy/yandex-metrika/types`   | Explicit type-only imports              |
 
 ## Browser quick start
 
@@ -60,7 +60,7 @@ responsibility. Once the tag has created `window.ym`, create a client:
 import {
   createMetrikaBrowserClient,
   parseMetrikaTagId,
-} from "@svetlitskiy/yandex-metrika/browser";
+} from "@a.svetlitskiy/yandex-metrika/browser";
 
 const metrika = createMetrikaBrowserClient({
   tagId: () => parseMetrikaTagId(process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID),
@@ -83,7 +83,7 @@ First enable Measurement Protocol in the counter's **Data security and usage**
 settings and create a secret token. Never expose that token to browser code.
 
 ```ts
-import { createMetrikaServerClient } from "@svetlitskiy/yandex-metrika/server";
+import { createMetrikaServerClient } from "@a.svetlitskiy/yandex-metrika/server";
 
 const metrika = createMetrikaServerClient({
   counterId: process.env.YANDEX_METRIKA_COUNTER_ID,
@@ -120,7 +120,7 @@ When the backend shares a registrable domain with the site, the Metrica
 `_ym_uid` cookie arrives with ordinary business requests:
 
 ```ts
-import { getMetrikaClientIdFromRequest } from "@svetlitskiy/yandex-metrika/server";
+import { getMetrikaClientIdFromRequest } from "@a.svetlitskiy/yandex-metrika/server";
 
 const clientId = getMetrikaClientIdFromRequest(request);
 ```
