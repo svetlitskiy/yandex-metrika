@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildMetrikaCollectUrl,
   createMetrikaServerClient,
@@ -6,6 +6,10 @@ import {
   parseMetrikaServerConfig,
   reachGoal,
 } from "./index";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function collectBody(fetchMock: ReturnType<typeof vi.fn>, callIndex: number) {
   const init = fetchMock.mock.calls[callIndex]?.[1] as
@@ -151,6 +155,45 @@ describe("reachGoal", () => {
         eventTime: Number.NaN,
       }),
     ).rejects.toThrow("eventTime must be a valid Date");
+  });
+
+  it("calls the default fetch with globalThis as its receiver", async () => {
+    let calls = 0;
+    const fetchProxy = new Proxy(globalThis.fetch, {
+      apply(_target, thisArg) {
+        if (thisArg !== globalThis) {
+          throw new TypeError("Illegal invocation");
+        }
+        calls += 1;
+        return Promise.resolve(new Response(null, { status: 200 }));
+      },
+    });
+    vi.stubGlobal("fetch", fetchProxy);
+
+    await expect(
+      reachGoal({
+        counterId: "12345678",
+        measurementToken: "token",
+        clientId: "1710232430899999999",
+        name: "purchase",
+        url: "https://example.test/checkout",
+      }),
+    ).resolves.toBe("sent");
+    expect(calls).toBe(1);
+  });
+
+  it("throws a clear error when fetch is unavailable", async () => {
+    vi.stubGlobal("fetch", undefined);
+
+    await expect(
+      reachGoal({
+        counterId: "12345678",
+        measurementToken: "token",
+        clientId: "1710232430899999999",
+        name: "purchase",
+        url: "https://example.test/checkout",
+      }),
+    ).rejects.toThrow("fetch is not available");
   });
 
   it("throws when collect returns an error", async () => {

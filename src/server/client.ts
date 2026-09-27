@@ -31,7 +31,7 @@ export async function postMetrikaCollect(input: {
   const body = new URLSearchParams(collectUrl.searchParams);
   collectUrl.search = "";
 
-  const fetchImpl = input.fetch ?? globalThis.fetch;
+  const fetchImpl = input.fetch ?? globalThis.fetch?.bind(globalThis);
   if (!fetchImpl) throw new Error("fetch is not available");
 
   const response = await fetchImpl(collectUrl, {
