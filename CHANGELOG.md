@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.4.0 (2026-09-27)
+
+### Summary
+
+- Fixed server-side transport failing on Cloudflare Workers with an "Illegal invocation" error.
+- The default global fetch is now bound to globalThis before sending collect requests.
+- Explicitly provided fetch implementations are unaffected and continue to work as before.
+- Missing fetch errors are now preserved instead of being masked by a generic binding error.
+- Added a regression test that fails if the default fetch is called unbound.
+- Test coverage for the server client increased with new binding-related cases.
+- No changes to browser transport or public API in this release.
+
+### Areas changed
+
+- Server: 1
+- Tests: 1
+
+Links: https://github.com/svetlitskiy/yandex-metrika/compare/v0.3.0...v0.4.0
+
 ## v0.3.0 (2026-08-30)
 
 ### Summary
