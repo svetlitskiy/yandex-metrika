@@ -182,6 +182,20 @@ describe("reachGoal", () => {
     expect(calls).toBe(1);
   });
 
+  it("throws a clear error when fetch is unavailable", async () => {
+    vi.stubGlobal("fetch", undefined);
+
+    await expect(
+      reachGoal({
+        counterId: "12345678",
+        measurementToken: "token",
+        clientId: "1710232430899999999",
+        name: "purchase",
+        url: "https://example.test/checkout",
+      }),
+    ).rejects.toThrow("fetch is not available");
+  });
+
   it("throws when collect returns an error", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 });
 
